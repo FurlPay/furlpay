@@ -2,21 +2,33 @@
 
 A **Trusted-Agent-Protocol-aligned trust layer for agentic payments**: Ed25519 agent identity, user-signed spend mandates, replay-safe booking tokens, and RFC 9421 HTTP message signatures. Zero runtime dependencies (`@types/node` is an optional peer, for TypeScript consumers only).
 
-Visa [introduced the Trusted Agent Protocol](https://usa.visa.com/about-visa/newsroom/press-releases.releaseId.21716.html) in October 2025 with Cloudflare and other partners, and has since [reported completing agentic transactions with partners](https://usa.visa.com/about-visa/newsroom/press-releases.releaseId.21961.html) while describing 2026 as the year of mainstream adoption. The [reference implementation](https://github.com/visa/trusted-agent-protocol) describes itself as a sample implementation demonstrating the protocol. Its premise: an agent-initiated payment must carry cryptographic proof of **who** the agent is, **that** the user consented, and **what** the agent is allowed to do. This package implements that trust chain so any FurlPay rail — the [travel MCP server](https://www.npmjs.com/package/@furlpay/travel-mcp), an HTTP API, an x402 facilitator — can gate spend behind it.
+Visa [introduced the Trusted Agent Protocol](https://usa.visa.com/about-visa/newsroom/press-releases.releaseId.21716.html) in October 2025 with Cloudflare and other partners, and on 2 July 2026 [announced live agent-executed purchases across Europe](https://www.visa.co.uk/about-visa/newsroom/press-releases.3457328.html), with merchant participation enabled through TAP and its Agent Directory. The [reference implementation](https://github.com/visa/trusted-agent-protocol) is Visa's sample implementation of the protocol, not the production service. Its premise: an agent-initiated payment must carry cryptographic proof of **who** the agent is, **that** the user consented, and **what** the agent is allowed to do. This package implements that trust chain so any FurlPay rail — the [travel MCP server](https://www.npmjs.com/package/@furlpay/travel-mcp), an HTTP API, an x402 facilitator — can gate spend behind it.
 
 ## Status
 
-**Published on npm: `0.1.0`.**
+**Current release: `0.2.0`.** `0.1.0` is affected by the two defects below; upgrade.
 
-`0.2.0` is prepared but **not released**. It adds the `/approval` and `/spend`
-entry points, and fixes a packaging bug in which the approval API shipped inside
-the tarball but could not be imported by any published path. Until `0.2.0` is on
-npm, `@furlpay/agent-trust/approval` resolves from the repository, not from an
-installed `0.1.0`.
+`0.2.0` adds the `/approval` and `/spend` entry points, fixes a packaging bug in
+which the approval API shipped inside the tarball but could not be imported, and
+fixes two spend-cap defects in `verifyBookingToken`:
+
+- **Float arithmetic in spend caps.** Caps and running totals were IEEE-754
+  doubles, so a $0.30 mandate refused $0.20 after $0.10 (`0.1 + 0.2 > 0.3`).
+  Limits are now checked in exact integer micro-dollars; see [Amounts](#amounts).
+- **Concurrent overspend.** The cap and single-use checks read state before an
+  `await` and wrote it after, so concurrent bookings could together exceed a
+  mandate's cap (three $60 bookings cleared a $100 cap) and spend a single-use
+  mandate twice. The check and the reservation are now atomic.
+
+Upgrading: the signed mandate and token format is unchanged. Amounts that are
+not exactly representable (more than 6 decimal places, exponent form,
+non-finite, negative, or at least $1,000,000,000) are now refused, at issue and
+at verification, where 0.1.0 accepted them.
 
 No third-party security audit has been performed. What exists is the test suite:
-**73 tests, 73 passing, 0 failing**, covering the approval binding, domain
-separation, and each distinct verification failure.
+**95 tests, 95 passing, 0 failing**, covering the approval binding, domain
+separation, each distinct verification failure, exact spend accounting at the
+cap boundary, and randomized concurrency properties.
 
 ## Install
 
@@ -98,8 +110,23 @@ const token = createBookingToken({
 
 // 3. Rail verifies the full chain before issuing a credential
 const decision = await trust.verifyBookingToken(token, { amountUsd: 320, mcc: "7011", source: "legacy" });
-// → { ok: true, agentKeyId: "ak_…", mandateId: "mnd_…", remainingUsd: 180 }
+// → { ok: true, agentKeyId: "ak_…", mandateId: "mnd_…", remainingUsd: 180, remainingUsdExact: "180.00" }
 ```
+
+### Amounts
+
+USD amounts are JSON numbers on the wire, but every limit check and every
+running total uses exact integer micro-dollars, never float arithmetic. An
+amount must be readable back exactly: at most 6 decimal places, finite,
+non-negative and below $1,000,000,000. Anything else is refused rather than
+rounded, including at issue time, so a mandate can never be signed for an
+amount the verifier would read differently. A mandate signed elsewhere with an
+amount outside those rules is refused at verification.
+
+Spend is reserved atomically with the cap check, so concurrent bookings cannot
+together exceed a mandate's cap or reuse a single-use mandate. Budgets live in
+the `AgentTrust` instance's memory: route all bookings for one mandate to one
+verifier.
 
 ### Gating the FurlPay travel MCP server
 
