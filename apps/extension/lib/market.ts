@@ -105,7 +105,8 @@ export function seriesFor(seed: string, range: Range, volatility: number): numbe
     const jump = rand() > 0.96 ? (rand() - 0.5) * 6 * amp : 0;
     // Drift regime flips roughly twice per series.
     if (rand() > 0.97) drift = (rand() - 0.5) * amp * 1.4;
-    const next = points[i - 1] * (1 + drift / SERIES_POINTS + shock / 3 + jump / 3);
+    const prev = points[i - 1] ?? 1; // always set: the loop appends before advancing
+    const next = prev * (1 + drift / SERIES_POINTS + shock / 3 + jump / 3);
     points.push(Math.min(hi, Math.max(lo, next)));
   }
   return points;
@@ -125,7 +126,9 @@ export function seriesTimes(range: Range, n: number): number[] {
 }
 
 /** Axis / tooltip time label appropriate for the range. */
-export function timeLabel(ts: number, range: Range): string {
+export function timeLabel(ts: number | undefined, range: Range): string {
+  // An axis tick past the end of the data is blank, not "Invalid Date".
+  if (ts === undefined) return "";
   const d = new Date(ts);
   if (range === "1D") return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   if (range === "1Y") return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
@@ -166,6 +169,8 @@ export function tokenAmount(n: number | null | undefined): string {
 export function changePct(series: number[]): number {
   const first = series[0];
   const last = series[series.length - 1];
+  // Empty series: NaN, as before (market.test pins it; callers guard).
+  if (first === undefined || last === undefined) return NaN;
   return ((last - first) / first) * 100;
 }
 
@@ -184,7 +189,10 @@ export function resample(series: number[], n = 32): number[] {
     const pos = (i / (n - 1)) * (series.length - 1);
     const lo = Math.floor(pos);
     const hi = Math.min(series.length - 1, lo + 1);
-    out.push(series[lo] + (series[hi] - series[lo]) * (pos - lo));
+    // lo and hi are both within [0, length-1] by construction.
+    const a = series[lo]!;
+    const b = series[hi]!;
+    out.push(a + (b - a) * (pos - lo));
   }
   return out;
 }
@@ -196,7 +204,7 @@ export function blendSeries(parts: { series: number[]; weight: number }[]): numb
   const out = Array(n).fill(0);
   for (const p of parts) {
     const s = resample(p.series, n);
-    for (let i = 0; i < n; i++) out[i] += (s[i] * p.weight) / total;
+    s.forEach((v, i) => (out[i] += (v * p.weight) / total));
   }
   return out;
 }
@@ -234,12 +242,12 @@ const MONOGRAM_PALETTE = [
 export function monogramColor(name: string): string {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  return MONOGRAM_PALETTE[Math.abs(h) % MONOGRAM_PALETTE.length];
+  return MONOGRAM_PALETTE[Math.abs(h) % MONOGRAM_PALETTE.length] ?? "#627EEA";
 }
 
 export function monogram(name: string): string {
-  const words = name.trim().split(/\s+/);
-  return words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
+  const [w1 = "", w2 = ""] = name.trim().split(/\s+/);
+  return w1 && w2 ? (w1.charAt(0) + w2.charAt(0)).toUpperCase() : name.slice(0, 2).toUpperCase();
 }
 
 export interface TxStatusMeta {
@@ -252,11 +260,11 @@ export function txStatusMeta(status: string): TxStatusMeta {
   const s = status.toLowerCase();
   if (s === "declined" || s === "failed" || s === "reversed") return { label: s === "declined" ? "Declined" : "Failed", tone: "loss" };
   if (s === "pending" || s === "processing" || s === "authorizing") return { label: "Pending", tone: "warning" };
-  if (s === "refunded" || s === "escrow" || s === "held") return { label: s[0].toUpperCase() + s.slice(1), tone: "info" };
+  if (s === "refunded" || s === "escrow" || s === "held") return { label: s.charAt(0).toUpperCase() + s.slice(1), tone: "info" };
   if (s === "scheduled" || s === "queued") return { label: "Scheduled", tone: "muted" };
   if (s === "settled") return { label: "Settled", tone: "gain" };
   if (s === "completed" || s === "succeeded" || s === "approved") return { label: "Completed", tone: "gain" };
-  return { label: status ? status[0].toUpperCase() + status.slice(1) : "—", tone: "muted" };
+  return { label: status ? status.charAt(0).toUpperCase() + status.slice(1) : "—", tone: "muted" };
 }
 
 /** "Today" / "Yesterday" / "Jul 4" group header for an ISO timestamp. */

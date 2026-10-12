@@ -49,7 +49,7 @@ describe("deriveCandles", () => {
   it("keeps the book continuous — each open equals the previous close", () => {
     const candles = deriveCandles(series, times, 10);
     for (let i = 1; i < candles.length; i++) {
-      expect(candles[i].o).toBe(candles[i - 1].c);
+      expect(candles[i]!.o).toBe(candles[i - 1]!.c);
     }
   });
 
@@ -63,7 +63,7 @@ describe("deriveCandles", () => {
 
   it("closes the final candle on the series' last value", () => {
     const candles = deriveCandles(series, times, 10);
-    expect(candles[candles.length - 1].c).toBe(series[series.length - 1]);
+    expect(candles[candles.length - 1]!.c).toBe(series[series.length - 1]);
   });
 
   it("never emits more buckets than samples", () => {

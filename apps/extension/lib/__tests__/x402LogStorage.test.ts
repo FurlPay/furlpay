@@ -18,7 +18,7 @@ describe("x402 detection log storage", () => {
   });
 
   it("lives in storage.session, and the legacy local copy is removed on install/update", () => {
-    const bg = sources[0][1];
+    const bg = sources[0]![1];
     expect(bg).toMatch(/storage\.session\.set\(\{\s*x402Log/);
     expect(bg).toMatch(/storage\.local\.remove\("x402Log"\)/);
   });

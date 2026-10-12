@@ -24,7 +24,7 @@ export function parseQuery(text: string): ParsedTravelQuery {
   let checkOut: string | undefined;
   if (range) {
     const year = new Date().getFullYear();
-    const monthIndex = range[1].toLowerCase();
+    const monthIndex = (range[1] ?? "").toLowerCase();
     const monthNum = months.split("|").indexOf(monthIndex) + 1;
     const mm = String(monthNum).padStart(2, "0");
     checkIn = `${year}-${mm}-${String(range[2]).padStart(2, "0")}`;

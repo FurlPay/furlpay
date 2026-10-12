@@ -73,7 +73,7 @@ describe("blended portfolio index stays chartable", () => {
           series: seriesFor(`${h.token}:chain`, range, tokenMeta(h.token).volatility),
         }))
       );
-      const last = blended[blended.length - 1];
+      const last = blended[blended.length - 1]!;
       const max = Math.max(...blended);
       const min = Math.min(...blended);
 

@@ -57,7 +57,8 @@ export function useOnboarding(): { shouldShow: boolean; dismiss: () => void } {
 
 export function Onboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
-  const current = STEPS[step];
+  // step only moves within [0, STEPS.length - 1] (the buttons clamp it).
+  const current = STEPS[step] ?? STEPS[0]!;
   const isLast = step === STEPS.length - 1;
 
   return (

@@ -195,9 +195,15 @@ jobs:
           src/lib/deposits
           src/lib/cron
           src/app/api/webhooks
-      - name: Extension P0 regression (T-E1)
+      # The whole extension suite plus a type-check, not one file. WXT 0.21
+      # (#80) turned on noUncheckedIndexedAccess in the generated tsconfig and
+      # 58 errors piled up unseen because nothing here compiled the extension.
+      - name: Extension type-check and tests
         working-directory: apps/extension
-        run: npx vitest run lib/__tests__/receiveAddress.test.ts
+        run: |
+          npx wxt prepare
+          npx tsc --noEmit
+          npx vitest run
 
   # Security auditing moved to .github/workflows/security-audit.yml
   # which has proper failure handling + Discord notifications.
