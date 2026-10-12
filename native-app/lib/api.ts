@@ -313,7 +313,11 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   const data = await res.json().catch(() => null);
   if (!opts.anonymous && generation !== sessionGeneration) throw new AbortedError("Session changed.");
   if (!res.ok) {
-    if (res.status === 401 && !opts.anonymous && token === await getToken() && generation === sessionGeneration) onUnauthorized?.();
+    // A step-up challenge is a 401 on a session that is still valid: the
+    // server wants a fresh passkey/OTP, not a new sign-in. Treating it as
+    // expiry signed the user out exactly when lib/stepUp.ts should have run.
+    const stepUp = (data as { error?: unknown } | null)?.error === "step_up_required";
+    if (res.status === 401 && !stepUp && !opts.anonymous && token === await getToken() && generation === sessionGeneration) onUnauthorized?.();
     const message =
       (data && typeof data === "object" && "error" in data && String((data as any).error)) ||
       `Request failed (${res.status})`;
