@@ -76,6 +76,13 @@ export interface RampGuardResult {
   velocityFlags: { burst: boolean; dailyVolume: boolean; geoJump: boolean };
   country: string | null;
   flags: RampGuardFlag[];
+  /**
+   * True when this operation was allowed only because the session holds a
+   * fresh step-up. The guard READS the step-up; it does not spend it. A route
+   * that goes on to move money must call claimStepUp() and refuse if the claim
+   * is lost, or two concurrent requests ride one re-authentication.
+   */
+  stepUpRequired: boolean;
 }
 
 /** The velocity subject: a user, or a partner's whole integration. */
@@ -147,6 +154,7 @@ export async function rampGuard(
   const review = velocity.action === "review";
   if (review && !serverInitiated) flags.push("velocity_review");
 
+  let stepUpRequired = false;
   if (input.amountUsd >= STEP_UP_THRESHOLD_USD || (review && serverInitiated)) {
     if (!serverInitiated) {
       // The provider runs its own enhanced verification at this size.
@@ -162,6 +170,7 @@ export async function rampGuard(
           action: { type: "step_up", methods: ["otp", "passkey"] },
         });
       }
+      stepUpRequired = true;
     }
   }
 
@@ -172,7 +181,7 @@ export async function rampGuard(
     }
   }
 
-  return { pass: true, meta: { guardId, velocityFlags: velocity.flags, country, flags } };
+  return { pass: true, meta: { guardId, velocityFlags: velocity.flags, country, flags, stepUpRequired } };
 }
 
 /**

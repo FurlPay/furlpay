@@ -348,6 +348,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // deployment refuses the capture instead of simulating one.
       v("APPLE_PAY_MERCHANT_ID"),
       v("PERSONA_API_KEY"),
+      // Hourly ceiling on KYC sessions opened by callers with no account
+      // (POST /api/compliance/kyc). Optional; defaults to 200.
+      v("KYC_ANON_SESSIONS_PER_HOUR"),
       v("NEXT_PUBLIC_PERSONA_TEMPLATE_ID"),
       v("NEXT_PUBLIC_PERSONA_ENV"),
       v("ALPACA_API_KEY_ID"),

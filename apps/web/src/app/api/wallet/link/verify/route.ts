@@ -7,7 +7,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { linkingEnabled, verifyLink } from "@/lib/walletLink";
 import { setLinkedWallet, type LinkedWallet } from "@/lib/store";
 import { linkWalletDurable } from "@/lib/linkedWalletStore";
-import { recentStepUp, consumeStepUp } from "@/lib/stepup";
+import { recentStepUp, claimStepUp } from "@/lib/stepup";
 import { recordSecurityEvent } from "@/lib/ops/events";
 import { audit } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
@@ -78,6 +78,12 @@ export async function POST(req: NextRequest) {
   const result = await verifyLink(user.id, claimed, body.signature);
   if (!result.ok) return reject(result.error, result.status);
 
+  // One step-up links ONE wallet. The check at the top is a read; this is the
+  // atomic claim, taken after the signature proves control and before any
+  // durable write, so two concurrent requests cannot both spend it. It was a
+  // fire-and-forget delete after the link was already stored.
+  if (!(await claimStepUp(user.id, auth.claims.jti))) return reject("stepup_required", 403);
+
   // Atomic, DB-enforced uniqueness (migration 0005). Race-safe across
   // instances: the Postgres UNIQUE constraint decides the winner.
   const existing = user.linkedWallet;
@@ -96,9 +102,6 @@ export async function POST(req: NextRequest) {
     proofNonce: result.nonce,
   };
   setLinkedWallet(user.id, linked);
-
-  // Single-use: burn the step-up so it can't authorize a second link in-window.
-  void consumeStepUp(user.id, auth.claims.jti);
 
   audit("wallet.link_established", user.id, { address: result.address, reLink: Boolean(existing) });
   void recordSecurityEvent({

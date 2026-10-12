@@ -46,6 +46,22 @@ export const DEFAULT_QUOTE_TTL_SECONDS = 300;
  *  freed key. */
 export const REPLAY_CLAIM_TTL_SECONDS = 86_400;
 
+/**
+ * One spelling per nonce, so one replay key per authorization.
+ *
+ * An EIP-3009 nonce is 32 bytes. "0xAB..", "0xab.." and "ab.." are the same
+ * bytes and the same signature, but three different strings, and the replay
+ * claim is keyed on the string: a payment replayed with its nonce re-cased
+ * took a key nobody had burned. EVM nonces are reduced to lowercase 0x-hex and
+ * anything that is not exactly 32 bytes is refused. A non-EVM network's nonce
+ * is opaque, so it is only bounded, never rewritten.
+ */
+export function canonicalNonce(network: string, nonce: string): string | null {
+  if (network.startsWith("solana")) return /^[A-Za-z0-9_-]{16,128}$/.test(nonce) ? nonce : null;
+  const m = /^(?:0[xX])?([0-9a-fA-F]{64})$/.exec(nonce);
+  return m ? `0x${m[1].toLowerCase()}` : null;
+}
+
 /** Canonical (native-issuance, not bridged) USDC per network. */
 export const NETWORK_USDC: Record<string, string> = {
   arbitrum: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
