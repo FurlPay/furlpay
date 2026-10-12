@@ -25,7 +25,6 @@ import {
   IconStablecoinMarket,
   IconTokenizedAssets,
   IconTravel,
-  IconUsers,
   IconWallet,
   type FurlIcon,
 } from "@/components/furlicons";
@@ -45,7 +44,7 @@ const NAV: { label: string; href: string; Icon: FurlIcon }[] = [
   { label: "Wallets", href: "/dashboard", Icon: IconWallet },
   { label: "Cards", href: "/cards", Icon: IconCard },
   { label: "Travel", href: "/travel", Icon: IconTravel },
-  { label: "Users", href: "#overview", Icon: IconUsers },
+  { label: "Cross-chain", href: "#cctp", Icon: IconChainAnalytics },
   { label: "Merchants", href: "#categories", Icon: IconMerchant },
   { label: "Compliance", href: "#risk", Icon: IconCompliance },
   { label: "Risk", href: "#risk", Icon: IconRisk },

@@ -95,6 +95,8 @@ export interface OnchainDashboard {
 }
 
 const ROW_LIMIT = 20_000;
+/** Corridors kept for the explorer; the card itself shows the top five. */
+const MAX_CORRIDORS = 25;
 const LEDGER_SOURCE = "FurlPay ledger (ops_tx_events)";
 const RISK_SOURCE = "FurlPay security events (ops_security_events)";
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -366,7 +368,7 @@ export async function buildOnchainDashboard(range: AnalyticsRange, chain: ChainF
     alliumChains: byChain.status === "ok" ? { ...byChain, data: summarizeChains(byChain.data) } : byChain,
     corridors:
       corridors.status === "ok"
-        ? { ...corridors, data: corridors.data.map((c) => ({ from: c.from_country, to: c.to_country, volumeUsd: c.volume_usd })).sort((a, b) => b.volumeUsd - a.volumeUsd).slice(0, 5) }
+        ? { ...corridors, data: corridors.data.map((c) => ({ from: c.from_country, to: c.to_country, volumeUsd: c.volume_usd })).sort((a, b) => b.volumeUsd - a.volumeUsd).slice(0, MAX_CORRIDORS) }
         : corridors,
   };
 }
