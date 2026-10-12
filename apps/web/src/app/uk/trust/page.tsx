@@ -9,7 +9,7 @@ import { breadcrumb } from "@/lib/seo/schema";
 export const metadata: Metadata = {
   title: "UK Trust, Risk & FCA Status",
   description:
-    "Furlpay's UK regulatory status, cryptoasset risk information, and security posture. Honest status: not yet FCA authorised — the authorisation gateway opens 30 September 2026.",
+    "Furlpay's UK regulatory status, cryptoasset risk information, and security posture. Honest status: not yet FCA authorised — the authorisation gateway opened 30 September 2026.",
   alternates: {
     canonical: "/uk/trust",
     languages: { "en-GB": "/uk/trust", "en-US": "/trust", "en-AE": "/ae/trust", "en-JP": "/jp/trust", "x-default": "/trust" },
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 const FAQ = [
-  { q: "Is Furlpay authorised or registered by the FCA?", a: "No. The FCA cryptoasset authorisation gateway opens on 30 September 2026, firms may apply until 28 February 2027, and the new regime becomes mandatory on 25 October 2027. Furlpay is preparing for the regime and is not currently FCA authorised." },
+  { q: "Is Furlpay authorised or registered by the FCA?", a: "No. The FCA cryptoasset authorisation gateway opened on 30 September 2026, firms may apply until 28 February 2027, and the new regime becomes mandatory on 25 October 2027. Furlpay is preparing for the regime and is not currently FCA authorised." },
   { q: "Are my cryptoassets protected?", a: "No. Cryptoassets are high risk. They are not regulated deposits, are not covered by the Financial Services Compensation Scheme (FSCS), and their value can fall as well as rise. You may lose all the money you put in." },
   { q: "What does the risk warning mean?", a: "UK rules require a standard warning for cryptoasset promotions: don't invest unless you're prepared to lose all the money you invest, this is a high-risk investment, and you're unlikely to be protected if something goes wrong. First-time investors also get a 24-hour cooling-off period." },
   { q: "How does Furlpay keep funds secure?", a: "Furlpay uses passkey (WebAuthn) authentication and a three-layer signing policy. Custody depends on the client, and we say which is which: the mobile app holds your key on your device (self-custodial), while web signing runs through a policy-gated secure enclave operated by our provider (custodial). Payments are screened against sanctions lists, and core code is open-source and auditable." },
@@ -55,7 +55,7 @@ export default function UkTrustPage() {
             <p>
               Furlpay is <strong className="text-white">not currently authorised or registered by
               the Financial Conduct Authority</strong>. Under the new UK cryptoasset regime, the FCA
-              authorisation gateway opens on <strong className="text-white">30 September 2026</strong>,
+              authorisation gateway opened on <strong className="text-white">30 September 2026</strong>,
               firms may apply until 28 February 2027, and the regime becomes mandatory on{" "}
               <strong className="text-white">25 October 2027</strong>. We are preparing for it and
               will update this page as our status changes.
