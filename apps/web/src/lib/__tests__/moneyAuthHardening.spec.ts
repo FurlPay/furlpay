@@ -179,3 +179,72 @@ describe("MPP: one authorization nonce, however it is spelled", () => {
     }
   });
 });
+
+describe("anonymous KYC: the ceiling cannot be drained cheaply, and failures are safe", () => {
+  beforeEach(async () => {
+    const { kvDel } = await import("@/lib/kv");
+    for (const k of ["kyc:anon:sessions", "kyc:anon:ceiling-alerted", "kyc:anon:net:192.0.2.0/24", "kyc:anon:net:198.18.0.0/24", "kyc:anon:net:203.0.113.0/24"]) await kvDel(k);
+  });
+  const kyc = { fullName: "Test Person", dateOfBirth: "1990-01-01", documentNumber: "X1234567", country: "GB" };
+  const from = (ip: string) =>
+    new NextRequest("https://furlpay.com/api/compliance/kyc", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": ip },
+      body: JSON.stringify(kyc),
+    });
+
+  it("networkOf groups addresses by /24 and /48", async () => {
+    const { networkOf } = await import("@/lib/clientIp");
+    expect(networkOf("203.0.113.7")).toBe("203.0.113.0/24");
+    expect(networkOf("203.0.113.250")).toBe("203.0.113.0/24");
+    expect(networkOf("2001:db8:abcd:12::1")).toBe("2001:db8:abcd::/48");
+    expect(networkOf("2001:db8::1")).toBe("2001:db8:0::/48");
+    expect(networkOf(null)).toBeNull();
+    expect(networkOf("not-an-ip")).toBeNull();
+  });
+
+  it("one network gets 10 sessions an hour, however many addresses it rotates through", async () => {
+    delete process.env.KYC_ANON_SESSIONS_PER_HOUR;
+    vi.resetModules();
+    startVerification.mockClear();
+    const { POST } = await import("@/app/api/compliance/kyc/route");
+    const statuses: number[] = [];
+    for (let i = 1; i <= 12; i++) statuses.push((await POST(from(`192.0.2.${i}`))).status);
+    expect(statuses.slice(0, 10).every((s) => s === 200)).toBe(true);
+    expect(statuses.slice(10)).toEqual([429, 429]);
+    expect(startVerification).toHaveBeenCalledTimes(10);
+    // Another network is unaffected.
+    expect((await POST(from("198.18.0.1"))).status).toBe(200);
+  });
+
+  it("raises one security alert when the ceiling is reached", async () => {
+    process.env.KYC_ANON_SESSIONS_PER_HOUR = "2";
+    vi.resetModules();
+    const events = await import("@/lib/ops/events");
+    const spy = vi.spyOn(events, "recordSecurityEvent").mockResolvedValue();
+    const { POST } = await import("@/app/api/compliance/kyc/route");
+    // The ceiling counter is shared with earlier tests in this file, so drive it
+    // from fresh networks until it refuses, then once more.
+    let refused = 0;
+    for (let i = 0; i < 40 && refused < 2; i++) {
+      if ((await POST(from(`100.${64 + i}.0.1`))).status === 503) refused++;
+    }
+    expect(refused).toBe(2);
+    const alerts = spy.mock.calls.filter(([e]) => e.kind === "kyc_anon_ceiling_reached");
+    expect(alerts.length).toBe(1);
+    spy.mockRestore();
+    delete process.env.KYC_ANON_SESSIONS_PER_HOUR;
+  });
+
+  it("a provider failure is a 502 with no detail, and gives its slots back", async () => {
+    vi.resetModules();
+    const { POST } = await import("@/app/api/compliance/kyc/route");
+    const { kvGet } = await import("@/lib/kv");
+    const before = Number((await kvGet("kyc:anon:net:203.0.113.0/24")) ?? 0);
+    startVerification.mockRejectedValueOnce(new Error("provider down: secret detail"));
+    const res = await POST(from("203.0.113.9"));
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "verification_provider_error" });
+    expect(Number((await kvGet("kyc:anon:net:203.0.113.0/24")) ?? 0)).toBe(before);
+  });
+});

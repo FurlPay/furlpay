@@ -4,7 +4,9 @@ import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { getIdentityProvider } from "@/lib/compliance/providers/factory";
 import { getCountryRule } from "@/lib/compliance/ruleEngine";
-import { kvIncr } from "@/lib/kv";
+import { kvIncr, kvIncrBy, kvSetNx } from "@/lib/kv";
+import { networkOf, trustedClientIp } from "@/lib/clientIp";
+import { recordSecurityEvent } from "@/lib/ops/events";
 
 // Every call opens a session at a paid identity provider, and the caller has
 // no account. The per-IP limit alone is not a budget: it is per address, and
@@ -16,6 +18,15 @@ const ANON_SESSIONS_PER_HOUR = (() => {
   const n = Number(process.env.KYC_ANON_SESSIONS_PER_HOUR);
   return Number.isInteger(n) && n > 0 ? n : 200;
 })();
+
+// The global ceiling is shared by every legitimate signup, so draining it is a
+// way to lock signups out. The per-IP limit (30 an hour) let about seven
+// addresses empty it. Addresses are cheap, networks less so: each IPv4 /24 or
+// IPv6 /48 gets its own hourly budget, so draining the ceiling takes at least
+// ANON_SESSIONS_PER_HOUR / PER_NETWORK distinct networks, and the first time
+// it is reached in a window an alert goes to the security event log.
+const PER_NETWORK_PER_HOUR = 10;
+
 
 const KycBody = z.object({
   fullName: z.string().min(1).max(200),
@@ -53,6 +64,22 @@ export async function POST(req: NextRequest) {
   // Counted only for requests that would actually reach the provider. If the
   // counter cannot be read the route fails closed: an unmetered paid call is
   // the thing this exists to prevent.
+  // A caller whose network cannot be determined shares one budget, rather
+  // than escaping the per-network limit.
+  const net = networkOf(trustedClientIp(req)) ?? "unknown";
+  let perNet: number;
+  try {
+    perNet = await kvIncr(`kyc:anon:net:${net}`, 3600);
+  } catch {
+    return NextResponse.json({ error: "verification_unavailable" }, { status: 503 });
+  }
+  if (perNet > PER_NETWORK_PER_HOUR) {
+    return NextResponse.json(
+      { error: "rate_limited", detail: "Too many verification attempts from this network. Try again later." },
+      { status: 429, headers: { "Retry-After": "600" } },
+    );
+  }
+
   let opened: number;
   try {
     opened = await kvIncr("kyc:anon:sessions", 3600);
@@ -60,6 +87,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "verification_unavailable" }, { status: 503 });
   }
   if (opened > ANON_SESSIONS_PER_HOUR) {
+    // Once per window: a drained ceiling means signups are being refused. A
+    // set-if-absent flag rather than "opened === limit + 1", which a limit
+    // lowered mid-window would step over.
+    if (await kvSetNx("kyc:anon:ceiling-alerted", 1, 3600).catch(() => false)) {
+      await recordSecurityEvent({
+        kind: "kyc_anon_ceiling_reached",
+        rail: "transfers",
+        severity: "high",
+        detail: `Anonymous KYC ceiling (${ANON_SESSIONS_PER_HOUR}/h) reached; new signups are refused until the window resets.`,
+      }).catch(() => {});
+    }
     return NextResponse.json(
       { error: "verification_busy", detail: "Identity verification is busy. Try again later." },
       { status: 503, headers: { "Retry-After": "600" } },
@@ -69,12 +107,21 @@ export async function POST(req: NextRequest) {
   const provider = await getIdentityProvider();
   const ref = crypto.randomUUID();
 
-  const session = await provider.startVerification(fullName, {
-    requiredDocs: rule.requiredDocs,
-    requiredChecks: rule.requiredChecks,
-    referenceId: ref,
-    country: code,
-  });
+  let session: Awaited<ReturnType<typeof provider.startVerification>>;
+  try {
+    session = await provider.startVerification(fullName, {
+      requiredDocs: rule.requiredDocs,
+      requiredChecks: rule.requiredChecks,
+      referenceId: ref,
+      country: code,
+    });
+  } catch (e) {
+    // No session was opened, so nothing was spent: give the slots back. A
+    // failed refund only makes the ceiling stricter, never looser.
+    await Promise.all([kvIncrBy("kyc:anon:sessions", -1, 3600), kvIncrBy(`kyc:anon:net:${net}`, -1, 3600)]).catch(() => {});
+    console.error("[compliance/kyc] provider failed:", (e as Error).message?.slice(0, 200));
+    return NextResponse.json({ error: "verification_provider_error" }, { status: 502 });
+  }
 
   return NextResponse.json({
     sessionId: session.sessionId,

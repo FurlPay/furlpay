@@ -175,3 +175,16 @@ export function trustedClientCountry(req: Pick<Request, "headers"> | undefined, 
   const c = req.headers.get("x-vercel-ip-country")?.trim().toUpperCase() ?? "";
   return /^[A-Z]{2}$/.test(c) && c !== "XX" ? c : null;
 }
+
+/** The /24 (IPv4) or /48 (IPv6) an address belongs to, or null if unknown. */
+export function networkOf(ip: string | null): string | null {
+  if (!ip) return null;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/.exec(ip);
+  if (v4) return `${v4[1]}.${v4[2]}.${v4[3]}.0/24`;
+  if (ip.includes(":")) {
+    const groups = ip.toLowerCase().split("::")[0].split(":").filter(Boolean);
+    if (groups.length === 0) return null;
+    return `${[...groups, "0", "0", "0"].slice(0, 3).join(":")}::/48`;
+  }
+  return null;
+}
