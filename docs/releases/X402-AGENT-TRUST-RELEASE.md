@@ -218,7 +218,7 @@ Source parity: `src/*`, tests, README and tsconfig are byte-identical between Fu
 1. Merge FurlPay/furlpay-x402#15 and FurlPay/agent-trust#4 (no branch protection, no CI available).
 2. **agent-trust: reject the stale staged artifact** (stage id `2d2007a1-…`, shasum `047e0d35…`, built before the README and comment sync). Re-stage from merged `main`:
    `npm stage reject <id>`, then `npm ci && npm test && npm stage publish --access public` (npm ≥ 12).
-3. x402: its staged artifact (`1ffe54ba-…`) was built from `937d2dc`; no shipped file has changed since. Confirm the shasum on the npm approval page equals a fresh `npm pack` of merged `main`.
+3. x402: **reject and re-stage too.** Its staged artifact (`1ffe54ba-…`) was built from `937d2dc`; the README has since gained the protocol-version note (V1 only). Re-stage from merged `main` the same way and confirm the shasum on the approval page equals a fresh `npm pack`.
 4. Approve both staged releases on npmjs.com with 2FA. The packages do not depend on each other; order does not matter.
 5. Verify: `npm view @furlpay/<pkg> version dist-tags` and the Post-publish verification commands above. x402's `latest` currently points at npm's `0.0.0-stage` placeholder; approval must move it to `0.2.0`.
 6. Deprecate the vulnerable release:
@@ -226,6 +226,12 @@ Source parity: `src/*`, tests, README and tsconfig are byte-identical between Fu
 7. Merge monorepo #121.
 
 Rollback: a published version cannot be replaced. Deprecate it and publish 0.2.1.
+
+npm policy that shapes this procedure (checked 2026-10-12):
+- `npm stage publish` needs npm CLI ≥ 11.15.0 and Node ≥ 22.14.0, and only works for a package that already exists. Staging the never-published `@furlpay/x402` made npm create a `0.0.0-stage` stub as `latest` until approval.
+- Since September 2026 npm issues stage-only tokens. Since August 2026, 2FA-bypass tokens cannot manage tokens, access or account settings. Around January 2027 they lose direct publish entirely. Plan for trusted publishing (OIDC from GitHub Actions) once Actions billing is restored.
+
+Protocol note: x402 V2 (June 2026) uses `PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` / `PAYMENT-RESPONSE` headers and CAIP-2 network ids. `@furlpay/x402` 0.2.0 implements V1 only, and its README says so. The nonce canonicalization is already forward-compatible: CAIP-2 `solana:*` ids take the base58 path and `eip155:*` the bytes32 path.
 
 ## Credentials
 
