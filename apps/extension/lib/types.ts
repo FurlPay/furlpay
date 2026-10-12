@@ -306,6 +306,8 @@ export type BgRequest =
   | { type: "GET_CHALLENGES" }
   | { type: "DECLINE_CHALLENGE"; challengeId: string }
   | { type: "OPEN_APPROVE"; challengeId?: string }
+  // Held agent payments (lib/heldPayments.ts). Read-only: deciding happens on furlpay.com.
+  | { type: "GET_HELD_PAYMENTS" }
   | { type: "GET_REWARDS" }
   | { type: "GET_TRANSACTIONS" }
   | { type: "GET_BARS"; symbol: string; tf: string }
