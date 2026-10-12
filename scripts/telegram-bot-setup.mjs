@@ -26,6 +26,7 @@ export const MENU_TEXT = "Open FurlPay";
 export const BOT_COMMANDS = [
   { command: "start", description: "Welcome and quick links" },
   { command: "help", description: "Everything the bot can do" },
+  { command: "app", description: "Open FurlPay inside Telegram" },
   { command: "flights", description: "Search flights, pay in USDC" },
   { command: "ask", description: "Ask the FurlPay docs" },
   { command: "quote", description: "Live crypto price" },
