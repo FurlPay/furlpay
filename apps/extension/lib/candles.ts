@@ -63,8 +63,9 @@ export function deriveCandles(series: number[], times: number[], buckets = 22): 
     const slice = series.slice(start, end);
     if (slice.length === 0) continue;
 
-    const close = slice[slice.length - 1];
-    const open = out.length === 0 ? slice[0] : out[out.length - 1].c;
+    // Non-empty (checked above), so both ends exist.
+    const close = slice[slice.length - 1]!;
+    const open = out[out.length - 1]?.c ?? slice[0]!;
     let high = Math.max(open, close);
     let low = Math.min(open, close);
     for (const v of slice) {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/icons";
 import { assessChallenge, clockLabel, dayLabel, mccLabel, txStatusMeta } from "@/lib/market";
+import { HELD_PAYMENTS_PATH, hasNoQueue, heldAmountLabel, parseHeldPayments, type HeldPayment } from "@/lib/heldPayments";
 import type { PasskeyList, PendingChallenge, Transaction } from "@/lib/types";
 import {
   ErrorPanel,
@@ -71,6 +72,7 @@ export default function ApprovalsTab({ onCount }: { onCount: (n: number) => void
         </p>
       )}
 
+      <HeldPaymentsSection now={now} />
       <ApprovalHistory />
       <HowApprovalsWork />
       <ApprovalDevices />
@@ -94,6 +96,76 @@ function ApprovalsIdle() {
         Manage cards
       </button>
     </div>
+  );
+}
+
+/**
+ * Agent payments a policy held for a person. Read-only: deciding one takes a
+ * passkey step-up, which only furlpay.com can run, so each card hands off to
+ * the web approval page. Hidden entirely for accounts without an organization.
+ */
+function HeldPaymentsSection({ now }: { now: number }) {
+  const [held, setHeld] = useState<HeldPayment[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    send<unknown>({ type: "GET_HELD_PAYMENTS" }).then((r) => {
+      if (r.ok) {
+        setHeld(parseHeldPayments(r.data));
+        setError(null);
+      } else if (hasNoQueue(r.error)) {
+        setHeld([]);
+        setError(null);
+      } else setError(r.error);
+    });
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 15000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  if (error) {
+    return (
+      <p style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)", margin: "6px 0 12px" }}>
+        Held agent payments could not be loaded ({error}).
+      </p>
+    );
+  }
+  if (!held || held.length === 0) return null;
+
+  return (
+    <>
+      <h3 className="section-title" style={{ marginTop: 14 }}>Held agent payments</h3>
+      {held.map((h) => {
+        const deadline = h.deadline ? new Date(h.deadline).getTime() : NaN;
+        const left = Number.isFinite(deadline) ? Math.max(0, Math.floor((deadline - now) / 1000)) : null;
+        return (
+          <div key={h.id} className="glass-panel fade-up" style={{ marginBottom: 12, padding: 14 }}>
+            <div style={{ fontFamily: "var(--fp-font-mono)", fontWeight: 800, fontSize: "1.05rem" }}>{heldAmountLabel(h)}</div>
+            {/* Full destination, wrapped rather than truncated: a lookalike
+                address differs in the middle, which an ellipsis would hide. */}
+            <div style={{ fontFamily: "var(--fp-font-mono)", fontSize: "0.7rem", wordBreak: "break-all", margin: "6px 0" }}>
+              To {h.payee}
+            </div>
+            {h.reason && (
+              <div style={{ fontSize: "0.7rem", color: "var(--fp-text-secondary)" }}>Held because: {h.reason}</div>
+            )}
+            {left !== null && (
+              <div style={{ fontSize: "0.66rem", color: left <= 60 ? "var(--fp-loss)" : "var(--fp-text-muted)", marginTop: 4 }}>
+                {left > 0
+                  ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} left, then ${h.onTimeout === "DENY" ? "denied" : "kept on hold"}`
+                  : "Approval window closed"}
+              </div>
+            )}
+            <button className="btn-primary" style={{ width: "100%", marginTop: 10 }} onClick={() => openSite(HELD_PAYMENTS_PATH)}>
+              Review on furlpay.com
+            </button>
+          </div>
+        );
+      })}
+    </>
   );
 }
 

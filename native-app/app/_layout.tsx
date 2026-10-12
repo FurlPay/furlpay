@@ -322,6 +322,7 @@ function AppShell() {
               <Stack.Screen name="insights" options={{ title: tr("nav.research") }} />
               <Stack.Screen name="chat" options={{ title: tr("nav.copilot") }} />
               <Stack.Screen name="approvals" options={{ title: tr("nav.approvals") }} />
+              <Stack.Screen name="held-payments" options={{ title: "Held payments" }} />
               <Stack.Screen name="support/index" options={{ title: tr("nav.support") }} />
               <Stack.Screen name="support/[id]" options={{ title: tr("nav.supportConversation") }} />
               <Stack.Screen name="passkeys" options={{ title: tr("nav.passkeys") }} />

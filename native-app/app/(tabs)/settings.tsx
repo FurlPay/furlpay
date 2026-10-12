@@ -316,6 +316,7 @@ export default function Settings() {
           <NavRow icon="pie-chart-outline" label="Spending analytics" onPress={() => router.push("/analytics")} />
           <NavRow icon="gift-outline" label="Rewards & referrals" onPress={() => router.push("/rewards")} />
           <NavRow icon="shield-checkmark-outline" label="Card approvals (3DS)" onPress={() => router.push("/approvals")} />
+          <NavRow icon="hand-left-outline" label="Held agent payments" onPress={() => router.push("/held-payments")} />
           <NavRow icon="sparkles-outline" label="AI co-pilot" onPress={() => router.push("/chat")} />
           <NavRow icon="notifications-outline" label="Notifications inbox" onPress={() => router.push("/notifications")} />
           <NavRow icon="help-buoy-outline" label="Support & help" onPress={() => router.push("/support")} />

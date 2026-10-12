@@ -194,3 +194,49 @@ describe("api client — timeouts", () => {
     expect(isRetryable(new TimeoutError(1000))).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 401 means two different things. An expired session must sign the user out;
+// a step-up challenge (`step_up_required`) is a 401 on a session that is still
+// valid, and signing out there throws away the session the step-up screen is
+// about to strengthen.
+// ---------------------------------------------------------------------------
+describe("api client — 401 handling", () => {
+  const realFetch = global.fetch;
+  const { setUnauthorizedHandler } = require("../api");
+  const signedOut = jest.fn();
+
+  beforeEach(async () => {
+    signedOut.mockReset();
+    setUnauthorizedHandler(signedOut);
+    await setToken("live-session");
+  });
+  afterEach(async () => {
+    global.fetch = realFetch;
+    setUnauthorizedHandler(() => {});
+    await setToken(null);
+  });
+
+  const respond = (body: unknown) =>
+    (global.fetch = (async () => ({
+      ok: false,
+      status: 401,
+      headers: { get: () => null },
+      json: async () => body,
+    })) as unknown as typeof fetch);
+
+  it("signs out on a plain 401", async () => {
+    respond({ error: "Unauthorized" });
+    await expect(api("/x")).rejects.toBeInstanceOf(ApiError);
+    expect(signedOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the session on step_up_required and surfaces the code", async () => {
+    respond({ error: "step_up_required", action: { type: "step_up" } });
+    const { isStepUpRequired } = require("../stepUp");
+    const err = await api("/x", { method: "POST" }).catch((e: unknown) => e);
+    expect(isStepUpRequired(err)).toBe(true);
+    expect(signedOut).not.toHaveBeenCalled();
+    await expect(getToken()).resolves.toBe("live-session");
+  });
+});

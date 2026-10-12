@@ -29,7 +29,7 @@ beforeEach(() => {
 describe("what an event contains", () => {
   it("platform, version, installation id, allowlisted metadata, and nothing about the user or the page", async () => {
     await track("travel_search", { source: "extension", url: "https://bank.example/secret", email: "a@b.c" } as never);
-    const e = queue()[0].event;
+    const e = queue()[0]!.event;
     expect(e).toMatchObject({ eventName: "travel_search", platform: "chrome_extension", appVersion: "1.2.0", schemaVersion: 1 });
     expect(e.metadata).toEqual({ source: "extension" });
     expect(JSON.stringify(e)).not.toMatch(/bank\.example|a@b\.c|userId/);
@@ -39,7 +39,7 @@ describe("what an event contains", () => {
   it("the installation id is stable across events", async () => {
     await track("extension_started");
     await track("extension_started");
-    expect(queue()[0].event.installationId).toBe(queue()[1].event.installationId);
+    expect(queue()[0]!.event.installationId).toBe(queue()[1]!.event.installationId);
   });
 
   it("the queue is bounded", async () => {
@@ -69,7 +69,7 @@ describe("flush", () => {
     });
     for (let i = 0; i < 5; i++) await flush(down as never);
     expect(queue()).toHaveLength(1);
-    expect(queue()[0].attempts).toBe(5);
+    expect(queue()[0]!.attempts).toBe(5);
     const r = await flush(down as never);
     expect(r.dropped).toBe(1);
     expect(queue()).toHaveLength(0);

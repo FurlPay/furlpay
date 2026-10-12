@@ -24,11 +24,11 @@ describe("content scripts cannot relay privileged messages", () => {
 
   it.each(contentScripts)("%s sends only fixed, unprivileged message types", (file) => {
     const src = readFileSync(join(ENTRY, file), "utf8");
-    const sends = [...src.matchAll(/sendMessage\s*\(\s*([^)]*)/g)].map((m) => m[1]);
+    const sends = [...src.matchAll(/sendMessage\s*\(\s*([^)]*)/g)].map((m) => m[1] ?? "");
     for (const arg of sends) {
       const literal = /^\{\s*type:\s*"([A-Z0-9_]+)"/.exec(arg.trim());
       expect(literal, `${file}: sendMessage argument is not a literal-typed object: ${arg.slice(0, 80)}`).not.toBeNull();
-      expect(ALLOWED.has(literal![1]), `${file}: sends ${literal![1]}`).toBe(true);
+      expect(ALLOWED.has(literal![1]!), `${file}: sends ${literal![1]}`).toBe(true);
     }
   });
 });

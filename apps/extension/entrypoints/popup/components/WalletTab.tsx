@@ -118,7 +118,7 @@ export default function WalletTab({ name, onQuickAction }: { name?: string; onQu
   const firstName = (name ?? "").split(" ")[0];
   const last = portfolioSeries[portfolioSeries.length - 1] || 1;
   const scale = overview.netWorth / last; // normalized series → dollars
-  const absChange = (last - portfolioSeries[0]) * scale;
+  const absChange = (last - (portfolioSeries[0] ?? last)) * scale;
   const syncAge = sync ? Math.max(0, Math.floor((now - sync.at) / 1000)) : null;
 
   return (
@@ -565,9 +565,9 @@ function CandleChart({ series, range, scale, privacy }: { series: number[]; rang
         })}
       </svg>
       <div className="chart-axis" aria-hidden="true">
-        <span>{timeLabel(candles[0].t, range)}</span>
-        <span>{timeLabel(candles[Math.floor(candles.length / 2)].t, range)}</span>
-        <span>{timeLabel(candles[candles.length - 1].t, range)}</span>
+        <span>{timeLabel(candles[0]?.t, range)}</span>
+        <span>{timeLabel(candles[Math.floor(candles.length / 2)]?.t, range)}</span>
+        <span>{timeLabel(candles[candles.length - 1]?.t, range)}</span>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.62rem", color: "var(--fp-text-muted)", fontFamily: "var(--fp-font-mono)", marginTop: 3 }}>
         <span>
@@ -603,7 +603,7 @@ function InteractiveChart({ series, range, scale, positive }: { series: number[]
   const color = positive ? "var(--fp-accent)" : "var(--fp-loss)";
   const hiIdx = series.indexOf(max);
   const loIdx = series.indexOf(min);
-  const baseline = y(series[0]);
+  const baseline = y(series[0] ?? min);
 
   const fromEvent = (e: React.PointerEvent) => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -618,7 +618,7 @@ function InteractiveChart({ series, range, scale, positive }: { series: number[]
     <div className="chart-wrap" style={{ margin: "8px 0 6px" }}>
       {active !== null && (
         <div className="chart-tip" style={{ left: `${(x(active) / W) * 100}%` }}>
-          <span className="tip-time">{timeLabel(times[active], range)}</span>${usd(series[active] * scale)}
+          <span className="tip-time">{timeLabel(times[active], range)}</span>${usd(series[active]! * scale)}
         </div>
       )}
       <svg
@@ -647,7 +647,7 @@ function InteractiveChart({ series, range, scale, positive }: { series: number[]
         {active !== null && (
           <>
             <line x1={x(active)} y1={PAD} x2={x(active)} y2={H - PAD} stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-            <circle cx={x(active)} cy={y(series[active])} r="3.5" fill={color} stroke="var(--fp-bg-primary)" strokeWidth="1.5" />
+            <circle cx={x(active)} cy={y(series[active]!)} r="3.5" fill={color} stroke="var(--fp-bg-primary)" strokeWidth="1.5" />
           </>
         )}
       </svg>

@@ -194,6 +194,9 @@ export default defineBackground(() => {
           })
         ).then(sendResponse);
         return true;
+      case "GET_HELD_PAYMENTS":
+        void toResponse(apiFetch<unknown>("/api/control-plane/approvals")).then(sendResponse);
+        return true;
       case "OPEN_APPROVE":
         void openApprovePage(message.challengeId).then(() => sendResponse({ ok: true, data: null }));
         return true;

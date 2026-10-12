@@ -33,7 +33,8 @@ export default function NotificationCenter({ onClose, onGoApprove }: { onClose: 
                 {challenges.length} pending approval{challenges.length > 1 ? "s" : ""}
               </div>
               <div className="tile-sub">
-                {challenges[0].merchant.name} · ${usd(challenges[0].amountUsd)}
+                {/* Inside the length > 0 branch, so [0] exists. */}
+                {challenges[0]!.merchant.name} · ${usd(challenges[0]!.amountUsd)}
               </div>
             </span>
             <span className="nav-badge" style={{ position: "static" }}>{challenges.length}</span>

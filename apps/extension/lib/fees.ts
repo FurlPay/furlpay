@@ -35,7 +35,7 @@ export function extractAmounts(text: string, context: string): AmountCandidate[]
   const re = new RegExp(AMOUNT_RE.source, "g"); // fresh lastIndex per call
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
-    const value = parseFloat(m[1].replace(/,/g, ""));
+    const value = parseFloat((m[1] ?? "").replace(/,/g, ""));
     if (!Number.isFinite(value) || value <= 0 || value > 100_000) continue;
     out.push({ value, weighted: TOTAL_CONTEXT_RE.test(context.slice(0, 120).toLowerCase()) });
   }

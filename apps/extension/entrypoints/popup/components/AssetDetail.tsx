@@ -234,6 +234,9 @@ function PriceChart({ candles, mode }: { candles: Candle[]; mode: "candle" | "li
 
   const first = shown[0];
   const last = shown[shown.length - 1];
+  // The caller renders "No price history" for an empty series; this keeps the
+  // chart itself from dereferencing nothing if it is ever used elsewhere.
+  if (!first || !last) return null;
   const rising = last.close >= first.open;
   const active = sel !== null ? shown[Math.min(sel, shown.length - 1)] : null;
 

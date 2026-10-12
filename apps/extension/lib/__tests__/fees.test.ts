@@ -27,9 +27,9 @@ describe("extractAmounts", () => {
 
   it("weighting comes from the surrounding context, not the node text", () => {
     const [c] = extractAmounts("$50.00", "Shipping fee");
-    expect(c.weighted).toBe(false);
+    expect(c!.weighted).toBe(false);
     const [t] = extractAmounts("$50.00", "Amount due today");
-    expect(t.weighted).toBe(true);
+    expect(t!.weighted).toBe(true);
   });
 });
 

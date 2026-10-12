@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import {
   approvalEvidenceBundle,
+  atomicToMajor,
+  decimalsFor,
   evidenceLeafHash,
   resolveApprovalDecision,
   type ApprovalDecision,
@@ -277,6 +279,16 @@ function toPending(row: ApprovalRow) {
  * authorization: amount, asset, recipient, rail, the policy reason, and the
  * deadline. Nothing an approver could not already see on the payment.
  */
+function majorOrNull(atomic: string, asset: string): string | null {
+  const decimals = decimalsFor(asset);
+  if (decimals === null) return null;
+  try {
+    return atomicToMajor(atomic, decimals);
+  } catch {
+    return null;
+  }
+}
+
 export async function pendingApprovalQueue(organizationId: string, limit = 50) {
   const approvals = await listPendingApprovals(organizationId, limit);
   if (!approvals) return null;
@@ -306,6 +318,10 @@ export async function pendingApprovalQueue(organizationId: string, limit = 50) {
         payment: {
           phase: auth.phase,
           amount: String(auth.amount_atomic),
+          // Major units from the same table the control plane priced the
+          // payment with, so a phone or watch never guesses decimals. Null for
+          // an asset the table does not know: show the atomic amount instead.
+          amountMajor: majorOrNull(String(auth.amount_atomic), auth.asset),
           asset: auth.asset,
           currency: auth.currency,
           network: auth.network_id,
