@@ -27,6 +27,10 @@ vi.mock("@/lib/authz", async (orig) => {
   };
 });
 
+// The push transport is the one thing replaced: no FCM or VAPID keys exist
+// here, and what matters is who is told and what the message carries.
+vi.mock("@/lib/push", () => ({ sendPushToUser: vi.fn(async () => 1) }));
+
 let pg: PgHarness;
 let key: string;
 let mandateId: string;
@@ -177,6 +181,17 @@ describe("a payment that needs a human", () => {
     expect((body.approval as Record<string, unknown>).required).toBe(true);
     authorizationId = body.id as string;
     payloadHash = body.payloadHash as string;
+  });
+
+  it("tells the organization owner, once, without the recipient address", async () => {
+    const { sendPushToUser } = await import("@/lib/push");
+    const calls = vi.mocked(sendPushToUser).mock.calls;
+    expect(calls).toHaveLength(1);
+    const [userId, payload] = calls[0]!;
+    expect(userId).toBe(USER);
+    expect(payload.body).toContain("1.00 USDC");
+    expect(JSON.stringify(payload)).not.toContain(ADDR);
+    expect(payload.data).toMatchObject({ kind: "control-plane-approval" });
   });
 
   it("cannot execute while it waits", async () => {

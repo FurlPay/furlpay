@@ -183,8 +183,12 @@ export function __resetPushStateForTests(): void {
  *  central deep-link resolver so an unknown/stale `data.url` (e.g. a resource
  *  that no longer exists, or a web-only path) lands on a safe screen instead of
  *  Expo Router's "Unmatched Route". */
-function routeFor(data: Record<string, unknown>): string {
+/** Where a tapped push lands. Navigation only: no push ever decides anything. */
+export function routeFor(data: Record<string, unknown>): string {
   if (data.kind === "card-auth-challenge") return "/approvals";
+  // An agent payment held by the control plane (apps/web approvalNotify.ts).
+  // Its `url` is the web dashboard's page, which the app does not have.
+  if (data.kind === "control-plane-approval") return "/held-payments";
   return resolveDeepLink(typeof data.url === "string" ? data.url : null);
 }
 

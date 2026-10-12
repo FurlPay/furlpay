@@ -25,6 +25,7 @@ import {
 import { financialEnvironment } from "@/lib/flags";
 import { log } from "@/lib/log";
 import { revocationLookup } from "./revocationAdapter";
+import { notifyApprovalHeld } from "./approvalNotify";
 import {
   assertControlPlaneDurable,
   findMandate,
@@ -436,6 +437,7 @@ export async function authorizePayment(req: AuthorizeRequest): Promise<Authorize
 
   // 10. One atomic write. Half-landing leaves an authorization nobody can
   //     explain or evidence nobody can attribute.
+  const approvalId = decision.requiresApproval ? `cpap_${randomUUID().replace(/-/g, "")}` : null;
   const written = await recordDecision({
     authorization: {
       id: authorizationId,
@@ -468,9 +470,9 @@ export async function authorizePayment(req: AuthorizeRequest): Promise<Authorize
       idempotency_key: req.idempotencyKey ?? null,
       expires_at: expiresAt,
     },
-    approval: decision.requiresApproval
+    approval: approvalId
       ? {
-          id: `cpap_${randomUUID().replace(/-/g, "")}`,
+          id: approvalId,
           approver_role: decision.escalation?.approverRole ?? "finance_admin",
           on_timeout: decision.escalation?.onTimeout ?? "HOLD",
           timeout_seconds: decision.escalation?.timeoutSeconds ?? 900,
@@ -496,6 +498,19 @@ export async function authorizePayment(req: AuthorizeRequest): Promise<Authorize
     requestId: req.requestId,
   });
   void lifecycle;
+
+  // Only after the hold is durably recorded: a push for an approval row that
+  // never landed would send someone to a queue with nothing in it. Replays
+  // never reach here (the route answers them from withIdempotency), so one
+  // hold is one push. notifyApprovalHeld never throws.
+  if (approvalId) {
+    await notifyApprovalHeld({
+      organizationId: req.organizationId,
+      approvalId,
+      amountAtomic: req.amountAtomic,
+      asset: req.asset,
+    });
+  }
 
   return {
     ok: true,
