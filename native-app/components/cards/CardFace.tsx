@@ -4,6 +4,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import type { CardStatus } from "@/lib/cards/lifecycle";
+import { CardFrontContent, CardSurface } from "@/components/cards/CardArt";
+import { designFor, type CardDesign } from "@/lib/cards/designs";
 
 // ---------------------------------------------------------------------------
 // The card itself.
@@ -30,6 +32,9 @@ export interface CardFaceProps {
   network: string;
   kind: "virtual" | "physical";
   gradient: readonly [string, string];
+  /** The card's theme id. When it (or the gradient) names one of the three
+   *  FurlPay designs, that artwork is drawn instead of the plain gradient. */
+  themeId?: string;
   settlementCurrency?: string;
   frozen?: boolean;
   status?: CardStatus;
@@ -62,6 +67,37 @@ export function CardFace(props: CardFaceProps) {
   const { label, last4, network, kind, gradient, settlementCurrency, compact = false } = props;
   const overlay = overlayFor(props);
   const scale = compact ? 0.78 : 1;
+  const design: CardDesign | null = designFor({ themeId: props.themeId, gradient });
+
+  const overlayNode = overlay ? (
+    <View style={styles.overlay}>
+      <View style={styles.overlayPill}>
+        <Ionicons name={overlay.icon} size={14} color={overlay.tint} />
+        <Text style={styles.overlayText} allowFontScaling={false}>
+          {overlay.label}
+        </Text>
+      </View>
+    </View>
+  ) : null;
+
+  if (design) {
+    return (
+      <View style={styles.shadow}>
+        <CardSurface design={design} style={[styles.card, compact && styles.cardCompact]}>
+          <CardFrontContent
+            design={design}
+            label={label}
+            kind={kind}
+            last4={last4}
+            network={network}
+            settlementCurrency={settlementCurrency}
+            scale={scale}
+          />
+          {overlayNode}
+        </CardSurface>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.shadow}>
@@ -100,16 +136,7 @@ export function CardFace(props: CardFaceProps) {
           ) : null}
         </View>
 
-        {overlay ? (
-          <View style={styles.overlay}>
-            <View style={styles.overlayPill}>
-              <Ionicons name={overlay.icon} size={14} color={overlay.tint} />
-              <Text style={styles.overlayText} allowFontScaling={false}>
-                {overlay.label}
-              </Text>
-            </View>
-          </View>
-        ) : null}
+        {overlayNode}
       </LinearGradient>
     </View>
   );
@@ -184,11 +211,13 @@ export function CardFacePreview({
   network,
   kind,
   gradient,
+  themeId,
 }: {
   label: string;
   network: string;
   kind: "virtual" | "physical";
   gradient: readonly [string, string];
+  themeId?: string;
 }) {
   return (
     <CardFace
@@ -197,6 +226,7 @@ export function CardFacePreview({
       network={network}
       kind={kind}
       gradient={gradient}
+      themeId={themeId}
       compact
     />
   );

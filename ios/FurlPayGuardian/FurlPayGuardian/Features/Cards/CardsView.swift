@@ -20,6 +20,12 @@ struct CardsView: View {
         ScrollView {
             VStack(spacing: 12) {
                 ForEach(container.cards.cards) { card in
+                    FlippableCardView(card: card) { reason in
+                        let result = await container.biometrics.authenticate(reason: reason)
+                        if result.isAuthenticated { return nil }
+                        if case .unavailable(let why) = result { return why }
+                        return ""
+                    }
                     CardRow(
                         card: card,
                         isPending: pending == card.id,

@@ -82,7 +82,13 @@ export const CARD_PRODUCTS: CardProduct[] = [
   },
 ];
 
+// electric / world / pearl are the three designs shown on /telegram
+// (components/telegram/PaymentCard.tsx). The clients key their artwork off the
+// id; the gradient is the fallback for a client that does not know the design.
 export const CARD_THEMES = [
+  { id: "electric", name: "Electric", premium: false, gradient: ["#14197D", "#006BFF"] as [string, string] },
+  { id: "world", name: "World", premium: false, gradient: ["#060B21", "#0B2A6B"] as [string, string] },
+  { id: "pearl", name: "Pearl", premium: false, gradient: ["#F1F0FF", "#C7A7F8"] as [string, string] },
   { id: "midnight", name: "Midnight", premium: false, gradient: ["#0B1220", "#1E293B"] as [string, string] },
   { id: "sand", name: "Sand", premium: false, gradient: ["#D9C6A5", "#8C7A5B"] as [string, string] },
   { id: "teal", name: "Deep Teal", premium: false, gradient: ["#0E4F52", "#08282B"] as [string, string] },

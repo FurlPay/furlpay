@@ -80,6 +80,7 @@ data class CardDto(
     val network: String? = null,
     val frozen: Boolean = false,
     val limits: CardLimitsDto? = null,
+    val gradient: List<String>? = null,
 ) {
     fun toDomain() = Card(
         id = id,
@@ -89,6 +90,7 @@ data class CardDto(
         frozen = frozen,
         label = label,
         limits = limits?.let { CardLimits(it.perPurchase, it.daily, it.dailySpent) },
+        gradient = gradient,
     )
 }
 
