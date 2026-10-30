@@ -113,6 +113,116 @@ const USDC_BY_NETWORK: Record<string, string> = {
  *  attack, never something to scale around silently. */
 const USDC_DECIMALS = 6;
 
+// ---------------------------------------------------------------------------
+// USDT (Tether) token registry.
+//
+// USDT uses a standard ERC-20 `transfer(to, amount)` function — NOT EIP-3009
+// `transferWithAuthorization`. This means:
+//   1. The sender must hold native gas tokens (ETH/MATIC) to pay for the
+//      transfer, OR the transaction must be submitted via a meta-transaction
+//      relayer that wraps the transfer in a sponsored transaction.
+//   2. There is no gasless relay path equivalent to the USDC EIP-3009 flow.
+//   3. The device signs a standard EIP-1559 transaction (via signTransaction),
+//      not an EIP-712 typed-data authorization.
+//
+// USDT decimal precision varies by chain:
+//   - Ethereum, Arbitrum, Polygon: 6 decimals
+//   - Some L2s/sidechains may differ — always verify on-chain
+//
+// Same pinning logic as USDC: the device refuses to sign for any contract
+// address not in this table. Adding a network here is a deliberate act.
+// ---------------------------------------------------------------------------
+
+/**
+ * Pinned USDT (Tether) contract addresses per network.
+ *
+ * Source: Tether's official token addresses from tether.to/en/transparency.
+ * Verified against Etherscan/Arbiscan/Polygonscan contract pages.
+ */
+export const USDT_BY_NETWORK: Record<string, string> = {
+  ethereum: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+  arbitrum: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+  polygon: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+  base: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+  // No USDT on Arbitrum Sepolia testnet — testnet transfers use mock tokens
+};
+
+/**
+ * USDT decimals per network.
+ *
+ * USDT is 6dp on all major EVM networks, matching USDC. This constant
+ * exists separately from USDC_DECIMALS because:
+ *   1. USDT on some chains (historical BSC deployment) used 18dp.
+ *   2. Having a separate constant makes the signing path explicit about
+ *      which token's precision it's using.
+ *   3. If Tether ever deploys a variant with different precision, we can
+ *      update per-network without affecting USDC.
+ */
+export const USDT_DECIMALS: Record<string, number> = {
+  ethereum: 6,
+  arbitrum: 6,
+  polygon: 6,
+  base: 6,
+};
+
+/** Default USDT decimals when the network isn't in the per-network map. */
+const USDT_DECIMALS_DEFAULT = 6;
+
+/**
+ * Supported stablecoins and their registries.
+ *
+ * Lookup table for multi-token support. Each entry provides the contract
+ * addresses, decimals, and the signing method required.
+ */
+export const STABLECOIN_REGISTRY = {
+  USDC: {
+    contracts: USDC_BY_NETWORK,
+    decimals: USDC_DECIMALS,
+    /** USDC supports EIP-3009 gasless transfers via transferWithAuthorization. */
+    signingMethod: "EIP-3009" as const,
+    /** EIP-712 domain name used in gasless authorization signatures. */
+    domainName: "USD Coin",
+  },
+  USDT: {
+    contracts: USDT_BY_NETWORK,
+    decimals: USDT_DECIMALS_DEFAULT,
+    decimalsByNetwork: USDT_DECIMALS,
+    /** USDT uses standard ERC-20 transfer() — requires gas or meta-tx relay. */
+    signingMethod: "ERC-20" as const,
+    domainName: "Tether USD",
+  },
+} as const;
+
+export type StablecoinSymbol = keyof typeof STABLECOIN_REGISTRY;
+
+/**
+ * Look up the pinned contract address for a stablecoin on a network.
+ *
+ * @throws UntrustedQuoteError if the stablecoin/network combination is not
+ *         in the registry.
+ */
+export function pinnedContract(symbol: StablecoinSymbol, network: string): string {
+  const entry = STABLECOIN_REGISTRY[symbol];
+  if (!entry) {
+    throw new UntrustedQuoteError(`Unknown stablecoin: ${symbol}`);
+  }
+  const address = entry.contracts[network];
+  if (!address) {
+    throw new UntrustedQuoteError(`No pinned ${symbol} contract for network: ${network}`);
+  }
+  return address;
+}
+
+/**
+ * Get the decimal precision for a stablecoin on a specific network.
+ */
+export function stablecoinDecimals(symbol: StablecoinSymbol, network: string): number {
+  if (symbol === "USDT") {
+    return USDT_DECIMALS[network] ?? USDT_DECIMALS_DEFAULT;
+  }
+  return USDC_DECIMALS;
+}
+
 /** Thrown when a server-supplied quote does not match what this device is
  *  willing to sign. Separate type so the UI can say "we didn't sign" plainly. */
 export class UntrustedQuoteError extends Error {

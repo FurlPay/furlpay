@@ -1,0 +1,46 @@
+{
+  "name": "@furlpay/anchorage",
+  "version": "0.1.0",
+  "description": "Anchorage Digital REST API client for institutional custody, vault management, transfers, Ed25519 request signing, and webhook verification. Zero runtime dependencies.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/index.js",
+    "dist/index.d.ts",
+    "dist/src",
+    "src",
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/tests/anchorage.test.js"
+  },
+  "keywords": [
+    "anchorage",
+    "custody",
+    "digital-assets",
+    "ed25519",
+    "banking",
+    "furlpay"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

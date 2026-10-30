@@ -1,0 +1,51 @@
+{
+  "name": "@furlpay/google-mpc",
+  "version": "0.1.0",
+  "description": "Google Cloud MPC v1beta client for 2-of-3 threshold signing, Cedar policy engine, and Confidential Space attestation. Integration-ready for FurlPay's proposed 2026–2027 MPC custody architecture.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./cedar": {
+      "types": "./dist/src/cedar.d.ts",
+      "import": "./dist/src/cedar.js"
+    }
+  },
+  "files": [
+    "dist/index.js",
+    "dist/index.d.ts",
+    "dist/src",
+    "src",
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/tests/google-mpc.test.js"
+  },
+  "keywords": [
+    "mpc",
+    "threshold-signing",
+    "google-cloud",
+    "confidential-space",
+    "cedar",
+    "custody",
+    "furlpay"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}
