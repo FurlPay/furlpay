@@ -5,7 +5,9 @@ import { ChevronDown, Download } from "lucide-react";
 import type { OnchainDashboard as Data } from "@/lib/onchain/dashboard";
 import { exportCsv, exportJson, systemStatus, volumeLayers, type SystemStatus } from "@/lib/onchain/dashboardView";
 import { fmtUsd } from "@/components/analytics/format";
-import { Card } from "./ui";
+import { Card, TipBox } from "./ui";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { volumeTimeline } from "@/lib/onchain/volumeTimeline";
 
 // ---------------------------------------------------------------------------
 // Header controls and the volume-layer card. Everything here renders what the
@@ -131,9 +133,12 @@ const LAYER_TONE: Record<string, string> = { raw: "#347DFF", adjusted: "#A65CF5"
 
 export function VolumeLayers({ data }: { data: Data }) {
   const layers = volumeLayers(data);
+  const points = volumeTimeline(data);
+  const [hidden, setHidden] = useState<string[]>([]);
+  const toggle = (key: string) => setHidden(h => h.includes(key) ? h.filter(k => k !== key) : [...h, key]);
   return (
     <Card title="Transaction Volume — Layered View" id="volume-layers" source="Allium (raw), FurlPay ledger">
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 min-[1100px]:grid-cols-4">
         {layers.map((l) => (
           <div key={l.key} className="rounded-lg border border-white/[0.07] bg-white/[0.015] px-3 py-2.5">
             <p className="flex items-center gap-1.5 text-[12px] text-white/70">
@@ -152,8 +157,21 @@ export function VolumeLayers({ data }: { data: Data }) {
           </div>
         ))}
       </div>
+      <div className="mt-3 flex flex-wrap gap-3 text-[10px]">
+        {layers.map(l => <button key={l.key} disabled={l.value === null} aria-pressed={!hidden.includes(l.key)} onClick={() => toggle(l.key)} className="flex items-center gap-1.5 disabled:opacity-40"><span className="h-2 w-2 rounded-full" style={{ background: hidden.includes(l.key) ? "#647b89" : LAYER_TONE[l.key] }} />{l.label}</button>)}
+      </div>
+      {points.some(p => p.ledger !== null || p.raw !== null) ? <div className="mt-2 h-[165px]" role="img" aria-label="Volume over time in USD; independent layers, missing observations left blank">
+        <ResponsiveContainer width="100%" height="100%"><AreaChart data={points} margin={{ left: 0, right: 5, top: 8, bottom: 0 }}>
+          <CartesianGrid stroke="#192b35" />
+          <XAxis dataKey="at" type="number" domain={["dataMin", "dataMax"]} tickFormatter={n => new Date(n).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} tick={{ fill: "#9baebb", fontSize: 10 }} minTickGap={30} />
+          <YAxis width={48} tickFormatter={n => fmtUsd(n, { compact: true })} tick={{ fill: "#9baebb", fontSize: 10 }} />
+          <Tooltip content={({ active, payload, label }) => active && payload?.length ? <TipBox title={new Date(Number(label)).toISOString().slice(0, 16) + " UTC"} rows={payload.filter(p => p.value !== null).map(p => ({ label: String(p.name), value: fmtUsd(Number(p.value)), color: p.color }))} /> : null} />
+          {!hidden.includes("raw") && <Area name="Raw on-chain" dataKey="raw" stroke={LAYER_TONE.raw} fill={LAYER_TONE.raw} fillOpacity={0.12} connectNulls={false} isAnimationActive={false} />}
+          {!hidden.includes("ledger") && <Area name="FurlPay ledger" dataKey="ledger" stroke={LAYER_TONE.ledger} fill={LAYER_TONE.ledger} fillOpacity={0.12} connectNulls={false} isAnimationActive={false} />}
+        </AreaChart></ResponsiveContainer>
+      </div> : <p className="py-6 text-center text-xs text-[#9baebb]">No timestamped volume available for this view.</p>}
       <p className="mt-2 text-[10.5px] text-white/40">
-        Each layer counts something different over its own window. They are shown side by side and never added together.
+        Totals retain their labeled source windows. The chart uses the selected period; daily provider data appears only for complete overlapping days and All Chains. Gaps stay blank; layers are never added together.
       </p>
     </Card>
   );

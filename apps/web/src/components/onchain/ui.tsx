@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import { IconInfo, type FurlIcon } from "@/components/furlicons";
 import { PRODUCT_LABELS } from "@/lib/analytics/products";
 import { fmtChange } from "@/components/analytics/format";
@@ -71,10 +71,10 @@ export function FreshnessChip({ f, inline = false }: { f: SectionFreshness; inli
 
 export function Card({ title, icon: Icon, id, action, source, freshness, children, className = "" }: { title: string; icon?: FurlIcon; id?: string; action?: ReactNode; source?: string; freshness?: SectionFreshness | null; children: ReactNode; className?: string }) {
   return (
-    <section id={id} className={`flex min-w-0 scroll-mt-16 flex-col rounded-[10px] border border-white/[0.075] bg-[#0A0F10] px-4 pb-3.5 pt-3.5 ${className}`}>
-      <div className="mb-2.5 flex min-h-[28px] items-center gap-1.5">
+    <section id={id} className={`flex min-w-0 scroll-mt-16 flex-col rounded-[7px] border border-[#192b35] bg-[#09141c] px-3 pb-3 pt-2.5 ${className}`}>
+      <div className="mb-2 flex min-h-[24px] items-center gap-1.5">
         {Icon && <Icon size={16} className="text-white/60" />}
-        <h2 className="truncate text-[15.5px] font-semibold tracking-[-0.01em] text-white">{title}</h2>
+        <h2 className="truncate text-[12px] font-semibold tracking-[-0.01em] text-white">{title}</h2>
         {source && (
           <span className="group relative shrink-0" tabIndex={0} aria-label={`Source: ${source}`}>
             <IconInfo size={14} className="text-white/30 transition-colors group-hover:text-white/70 group-focus:text-white/70" />
@@ -111,58 +111,15 @@ export function Menu<T extends string>({
   width?: number | "auto";
   size?: "sm" | "md";
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", down);
-    document.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("mousedown", down);
-      document.removeEventListener("keydown", key);
-    };
-  }, [open]);
-  const current = options.find(([v]) => v === value)?.[1] ?? value;
-  const h = size === "md" ? "h-[32px] text-[12.5px]" : "h-[28px] text-[12px]";
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={`${label}: ${current}`}
-        disabled={options.length < 2}
-        onClick={() => setOpen((o) => !o)}
-        style={width === "auto" ? undefined : { width }}
-        className={`flex ${h} items-center justify-between gap-3 rounded-md border border-white/[0.12] bg-[#0C1213] px-2.5 text-white/90 transition-colors hover:border-white/25 disabled:cursor-default disabled:hover:border-white/[0.12]`}
-      >
-        <span className="truncate">{current}</span>
-        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-white/60 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <ul role="listbox" aria-label={label} className="absolute right-0 z-50 mt-1 min-w-full overflow-hidden rounded-md border border-white/[0.12] bg-[#0D1415] py-1 shadow-xl shadow-black/60">
-          {options.map(([v, l]) => (
-            <li key={v}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={v === value}
-                onClick={() => {
-                  onChange(v);
-                  setOpen(false);
-                }}
-                className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-[12.5px] text-white/85 hover:bg-white/[0.06]"
-              >
-                <span className="w-3.5">{v === value && <Check className="h-3.5 w-3.5 text-[#00E599]" />}</span>
-                {l}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <label className="relative inline-flex min-w-0">
+      <select aria-label={label} value={value} onChange={e => onChange(e.target.value as T)}
+        style={width === "auto" ? undefined : { width, maxWidth: "100%" }}
+        className={"appearance-none rounded-[5px] border border-[#192b35] bg-[#07121a] pl-2.5 pr-7 text-[#f1f5f9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#347dff] " + (size === "md" ? "h-8 text-[11px]" : "h-7 text-[11px]")}>
+        {options.map(([v, text]) => <option key={v} value={v}>{text}</option>)}
+      </select>
+      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[#9baebb]" />
+    </label>
   );
 }
 

@@ -86,7 +86,7 @@ export interface VolumeLayer {
 
 export function volumeLayers(d: OnchainDashboard): VolumeLayer[] {
   const raw: VolumeLayer =
-    d.alliumDaily.status === "ok"
+    d.alliumDaily.status === "ok" && d.chain === "all"
       ? {
           key: "raw",
           label: "Raw on-chain",
@@ -102,7 +102,7 @@ export function volumeLayers(d: OnchainDashboard): VolumeLayer[] {
           value: null,
           window: null,
           source: d.alliumDaily.source,
-          unavailable: d.alliumDaily.reason,
+          unavailable: d.chain !== "all" ? "The raw source is global and cannot be filtered by chain." : d.alliumDaily.status === "unavailable" ? d.alliumDaily.reason : "Not available",
         };
   // Two different measures, kept apart. ADJUSTED volume removes inorganic
   // movement (bots, wash trading, intra-entity transfers) but still includes
@@ -115,7 +115,7 @@ export function volumeLayers(d: OnchainDashboard): VolumeLayer[] {
     measures: "Raw transfers minus bots, wash trading and intra-entity moves",
     value: null,
     window: null,
-    source: "Allium stablecoins.metrics.volume_daily (adjusted_volume_usd)",
+    source: "Adjusted-volume source not connected",
     unavailable: "Not ingested yet. Raw volume is not converted into an estimate.",
   };
   const economic: VolumeLayer = {
@@ -124,7 +124,7 @@ export function volumeLayers(d: OnchainDashboard): VolumeLayer[] {
     measures: "Transfers classified as payments (B2B, C2B, C2C, payouts)",
     value: null,
     window: null,
-    source: "Allium stablecoins.intelligence.payment_categorization",
+    source: "Payment-classification source not connected",
     unavailable: "Needs a payment-classification source. Unclassified transfers are not counted as payments.",
   };
   const ledger: VolumeLayer =
